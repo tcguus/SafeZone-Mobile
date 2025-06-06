@@ -14,6 +14,7 @@ import axios from "axios";
 import Header from "@/components/Header";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
+import DropDownPicker from "react-native-dropdown-picker";
 
 const API_URL = "https://safezone-api-r535.onrender.com";
 
@@ -26,12 +27,40 @@ interface Morador {
 }
 
 export default function MoradoresScreen() {
+  const [zonas, setZonas] = useState<{ id: number; nome: string }[]>([]);
+  const [prioridadeOpen, setPrioridadeOpen] = useState<boolean>(false);
+  const [zonaOpen, setZonaOpen] = useState<boolean>(false);
+
+  const carregarZonas = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/ZonaDeRisco`);
+      let lista: any[] = [];
+
+      const responseData = res.data;
+
+      if (
+        responseData &&
+        typeof responseData === "object" &&
+        Array.isArray((responseData as any).$values)
+      ) {
+        lista = (responseData as any).$values;
+      } else if (Array.isArray(responseData)) {
+        lista = responseData;
+      }
+
+      const zonasAtivas = lista.filter((z: any) => z.status === "Ativo");
+      setZonas(zonasAtivas);
+    } catch {
+      Alert.alert("Erro ao carregar zonas de risco");
+    }
+  };
+
   const [moradores, setMoradores] = useState<Morador[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<Morador>({
     nome: "",
     cpf: "",
-    prioridade: "Alta",
+    prioridade: "",
     zonaDeRiscoId: 1,
   });
   const [modalVisible, setModalVisible] = useState(false);
@@ -116,6 +145,7 @@ export default function MoradoresScreen() {
   useFocusEffect(
     useCallback(() => {
       carregarMoradores();
+      carregarZonas();
     }, [])
   );
 
@@ -144,7 +174,9 @@ export default function MoradoresScreen() {
               <Text style={styles.cardText}>CPF: {item.cpf}</Text>
               <Text style={styles.cardText}>Prioridade: {item.prioridade}</Text>
               <Text style={styles.cardText}>
-                Zona de Risco ID: {item.zonaDeRiscoId}
+                Zona:{" "}
+                {zonas.find((z) => z.id === item.zonaDeRiscoId)?.nome ??
+                  "Desconhecida"}
               </Text>
               <TouchableOpacity
                 style={styles.deleteButton}
@@ -174,18 +206,71 @@ export default function MoradoresScreen() {
           keyboardType="numeric"
           placeholderTextColor="#aaa"
         />
-        <TextInput
-          placeholder="Prioridade (Alta, Média, Baixa)"
-          value={form.prioridade}
-          onChangeText={(t) => setForm({ ...form, prioridade: t })}
-          style={styles.input}
-          placeholderTextColor="#aaa"
-        />
-        <TextInput
-          value={form.zonaDeRiscoId.toString()}
-          editable={false}
-          style={[styles.input, { color: "#888" }]}
-        />
+        <View style={{ zIndex: prioridadeOpen ? 1000 : 500 }}>
+          <DropDownPicker
+            open={prioridadeOpen}
+            value={form.prioridade}
+            items={[
+              { label: "Alta", value: "Alta" },
+              { label: "Média", value: "Média" },
+              { label: "Baixa", value: "Baixa" },
+            ]}
+            setOpen={setPrioridadeOpen}
+            onOpen={() => setZonaOpen(false)}
+            setValue={(callback) =>
+              setForm((prev) => ({
+                ...prev,
+                prioridade: callback(prev.prioridade),
+              }))
+            }
+            setItems={() => {}}
+            placeholder="Selecione a prioridade"
+            style={styles.dropdown}
+            textStyle={{ color: "#fff" }}
+            dropDownContainerStyle={{
+              backgroundColor: "#0A1C3B",
+              borderColor: "#007FD7",
+            }}
+            ArrowDownIconComponent={() => (
+              <Ionicons name="chevron-down" size={20} color="#fff" />
+            )}
+            ArrowUpIconComponent={() => (
+              <Ionicons name="chevron-up" size={20} color="#fff" />
+            )}
+          />
+        </View>
+        <View style={{ zIndex: zonaOpen ? 1000 : 500 }}>
+          <DropDownPicker
+            open={zonaOpen}
+            value={form.zonaDeRiscoId}
+            items={zonas.map((zona) => ({
+              label: zona.nome,
+              value: zona.id,
+            }))}
+            setOpen={setZonaOpen}
+            onOpen={() => setPrioridadeOpen(false)}
+            setValue={(callback) =>
+              setForm((prev) => ({
+                ...prev,
+                zonaDeRiscoId: callback(prev.zonaDeRiscoId),
+              }))
+            }
+            setItems={() => {}}
+            placeholder="Selecione a zona"
+            style={styles.dropdown}
+            textStyle={{ color: "#fff" }}
+            dropDownContainerStyle={{
+              backgroundColor: "#0A1C3B",
+              borderColor: "#007FD7",
+            }}
+            ArrowDownIconComponent={() => (
+              <Ionicons name="chevron-down" size={20} color="#fff" />
+            )}
+            ArrowUpIconComponent={() => (
+              <Ionicons name="chevron-up" size={20} color="#fff" />
+            )}
+          />
+        </View>
         <TouchableOpacity style={styles.button} onPress={cadastrarMorador}>
           <Text style={styles.buttonText}>Cadastrar Morador</Text>
         </TouchableOpacity>
@@ -277,6 +362,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
+  dropdown: {
+    backgroundColor: "#0A1C3B",
+    borderColor: "#007FD7",
+    marginBottom: 10,
+    zIndex: 1000, // ajuda a resolver sobreposição
+  },
+
   cardText: {
     color: "#ccc",
     fontSize: 14,
@@ -339,5 +431,11 @@ const styles = StyleSheet.create({
     width: "90%",
     borderWidth: 1,
     borderColor: "#007FD7",
+  },
+  pickerWrapper: {
+    backgroundColor: "#0A1C3B",
+    borderRadius: 8,
+    marginBottom: 10,
+    color: "#fff",
   },
 });

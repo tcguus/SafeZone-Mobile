@@ -14,6 +14,7 @@ import axios from "axios";
 import Header from "@/components/Header";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
+import DropDownPicker from "react-native-dropdown-picker";
 
 const API_URL = "https://safezone-api-r535.onrender.com";
 
@@ -27,10 +28,30 @@ interface Alerta {
 }
 
 export default function AlertasScreen() {
+  const [zonaOpen, setZonaOpen] = useState(false);
+  const [zonas, setZonas] = useState<{ id: number; nome: string }[]>([]);
+
   const [modalVisible, setModalVisible] = useState(false);
   const [alertaSelecionado, setAlertaSelecionado] = useState<Alerta | null>(
     null
   );
+  const carregarZonas = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/ZonaDeRisco`);
+      const lista = Array.isArray(res.data)
+        ? res.data
+        : typeof res.data === "object" &&
+          res.data !== null &&
+          "$values" in res.data
+        ? (res.data as any).$values
+        : [];
+
+      const zonasAtivas = lista.filter((z: any) => z.status === "Ativo");
+      setZonas(zonasAtivas);
+    } catch {
+      Alert.alert("Erro ao carregar zonas de risco");
+    }
+  };
 
   const abrirModalEdicao = (alerta: Alerta) => {
     setAlertaSelecionado(alerta);
@@ -132,6 +153,7 @@ export default function AlertasScreen() {
   useFocusEffect(
     useCallback(() => {
       carregarAlertas();
+      carregarZonas();
     }, [])
   );
 
@@ -157,7 +179,9 @@ export default function AlertasScreen() {
               </Text>
               <Text style={styles.cardText}>Data: {item.dataHora}</Text>
               <Text style={styles.cardText}>
-                Zona de Risco ID: {item.zonaDeRiscoId}
+                Zona:{" "}
+                {zonas.find((z) => z.id === item.zonaDeRiscoId)?.nome ??
+                  "Desconhecida"}
               </Text>
 
               <TouchableOpacity
@@ -201,11 +225,38 @@ export default function AlertasScreen() {
           style={styles.input}
           placeholderTextColor="#aaa"
         />
-        <TextInput
-          value={form.zonaDeRiscoId.toString()}
-          editable={false}
-          style={[styles.input, { color: "#888" }]}
-        />
+        <View style={{ zIndex: 500 }}>
+          <DropDownPicker
+            open={zonaOpen}
+            value={form.zonaDeRiscoId}
+            items={zonas.map((zona) => ({
+              label: zona.nome,
+              value: zona.id,
+            }))}
+            setOpen={setZonaOpen}
+            setValue={(callback) =>
+              setForm((prev) => ({
+                ...prev,
+                zonaDeRiscoId: callback(prev.zonaDeRiscoId),
+              }))
+            }
+            setItems={() => {}}
+            placeholder="Selecione a zona de risco"
+            style={styles.dropdown}
+            dropDownContainerStyle={{
+              backgroundColor: "#0A1C3B",
+              borderColor: "#007FD7",
+            }}
+            textStyle={{ color: "#fff" }}
+            ArrowDownIconComponent={() => (
+              <Ionicons name="chevron-down" size={20} color="#fff" />
+            )}
+            ArrowUpIconComponent={() => (
+              <Ionicons name="chevron-up" size={20} color="#fff" />
+            )}
+          />
+        </View>
+
         <TouchableOpacity style={styles.button} onPress={cadastrarAlerta}>
           <Text style={styles.buttonText}>Cadastrar Alerta</Text>
         </TouchableOpacity>
@@ -288,6 +339,11 @@ const styles = StyleSheet.create({
     color: "#aaa",
     textAlign: "center",
     marginVertical: 20,
+  },
+  dropdown: {
+    backgroundColor: "#0A1C3B",
+    borderColor: "#007FD7",
+    marginBottom: 10,
   },
   card: {
     backgroundColor: "#0A1C3B",
